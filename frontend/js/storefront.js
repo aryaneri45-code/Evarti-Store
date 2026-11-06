@@ -22,7 +22,16 @@ const productGallery = product => {
 };
 const productUrl = product => `product.html?slug=${encodeURIComponent(product.slug)}`;
 const cartItems = () => {
-  try { return JSON.parse(localStorage.getItem(CART_KEY) || "[]"); }
+  try {
+    const items = JSON.parse(localStorage.getItem(CART_KEY) || "[]");
+    if (!Array.isArray(items)) return [];
+    const uniqueItems = new Map();
+    for (const item of items) {
+      if (!item || typeof item.slug !== "string" || uniqueItems.has(item.slug)) continue;
+      uniqueItems.set(item.slug, { ...item, quantity: 1 });
+    }
+    return [...uniqueItems.values()];
+  }
   catch { return []; }
 };
 const saveCart = items => {
@@ -157,7 +166,7 @@ function renderProduct(product) {
   const discounted = Number(product.compare_price) > Number(product.price);
   document.querySelector("#page-content").innerHTML = `<div class="breadcrumb"><a href="index.html">Home</a><span>/</span><a href="store.html">Preset</a><span>/</span><span>${escapeHtml(product.name)}</span></div>
     <section class="product-detail section-wrap"><div class="product-gallery"><div class="gallery-main"><img src="${gallery[0]}" alt="${escapeHtml(product.name)} sample photo" data-gallery-main></div><div class="gallery-thumbs">${gallery.map((image, index) => `<button type="button" class="gallery-thumb ${index === 0 ? "is-active" : ""}" data-image="${image}" aria-label="Show sample ${index + 1}"><img src="${image}" alt=""></button>`).join("")}</div></div>
-    <div class="product-detail-copy"><p class="eyebrow">${escapeHtml(product.category_name || "LIGHTROOM PRESET")}</p><h1>${escapeHtml(product.name)}</h1><div class="detail-price">${discounted ? `<s>${money(product.compare_price)}</s>` : ""}<strong>${money(product.price)}</strong></div><p class="detail-description">${escapeHtml(product.description || "Preset Lightroom pilihan untuk memberi karakter pada foto-foto favoritmu.")}</p><ul class="product-promises"><li>Instant digital download</li><li>Compatible with iOS &amp; Android</li><li>Step-by-step installation guide</li></ul><label class="format-select">Choose your format<select id="product-format"><option value="Mobile (DNG)">Mobile (DNG)</option><option value="Desktop (XMP)">Desktop (XMP)</option></select></label><div class="purchase-row"><div class="quantity-control"><button type="button" data-action="quantity-down" aria-label="Decrease quantity">−</button><output id="quantity-value">1</output><button type="button" data-action="quantity-up" aria-label="Increase quantity">+</button></div><button class="button button-dark detail-add" type="button" data-action="add-detail">ADD TO CART</button></div><p class="detail-meta">Category: <a href="store.html?category=${encodeURIComponent(product.category_slug || "")}">${escapeHtml(product.category_name || "Preset")}</a></p><a class="text-link" href="tutorial.html">How to install <span>↗</span></a></div></section>
+    <div class="product-detail-copy"><p class="eyebrow">${escapeHtml(product.category_name || "LIGHTROOM PRESET")}</p><h1>${escapeHtml(product.name)}</h1><div class="detail-price">${discounted ? `<s>${money(product.compare_price)}</s>` : ""}<strong>${money(product.price)}</strong></div><p class="detail-description">${escapeHtml(product.description || "Preset Lightroom pilihan untuk memberi karakter pada foto-foto favoritmu.")}</p><ul class="product-promises"><li>Instant digital download</li><li>Compatible with iOS &amp; Android</li><li>Step-by-step installation guide</li><li>Maksimal 1 item untuk produk ini per pesanan</li></ul><label class="format-select">Choose your format<select id="product-format"><option value="Mobile (DNG)">Mobile (DNG)</option><option value="Desktop (XMP)">Desktop (XMP)</option></select></label><div class="purchase-row"><button class="button button-dark detail-buy" type="button" data-action="buy-now">BUY NOW</button><button class="button button-outline detail-add" type="button" data-action="add-detail">ADD TO CART</button></div><p class="detail-meta">Category: <a href="store.html?category=${encodeURIComponent(product.category_slug || "")}">${escapeHtml(product.category_name || "Preset")}</a></p><a class="text-link" href="tutorial.html">How to install <span>↗</span></a></div></section>
     <section class="product-tabs section-wrap"><div class="tab-buttons"><button class="tab-button is-active" type="button" data-tab="description">Description</button><button class="tab-button" type="button" data-tab="reviews">Reviews (0)</button></div><div class="tab-panel" data-tab-panel="description"><h2>Made for the everyday</h2><p>${escapeHtml(product.description || "")}</p><div class="before-after-grid">${gallery.map((image, index) => `<figure><img src="${image}" alt="Edited photo sample ${index + 1}" loading="lazy"><figcaption>Sample edit 0${index + 1}</figcaption></figure>`).join("")}</div></div><div class="tab-panel" data-tab-panel="reviews" hidden><h2>Customer reviews</h2><p>Belum ada ulasan untuk preset ini. Jadilah yang pertama berbagi pengalaman setelah mencobanya.</p></div></section>`;
 }
 
@@ -175,17 +184,18 @@ function renderAbout() {
 function renderCart() {
   const items = cartItems();
   const total = items.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
-  const rows = items.map(item => `<article class="cart-row"><a href="product.html?slug=${encodeURIComponent(item.slug)}"><img src="${escapeHtml(item.image)}" alt=""></a><div class="cart-item-info"><a class="product-title" href="product.html?slug=${encodeURIComponent(item.slug)}">${escapeHtml(item.name)}</a><span>${escapeHtml(item.format || "Mobile (DNG)")}</span><strong>${money(item.price)}</strong><div class="cart-item-actions"><button type="button" data-action="cart-down" data-slug="${escapeHtml(item.slug)}" aria-label="Decrease quantity">−</button><span>${item.quantity}</span><button type="button" data-action="cart-up" data-slug="${escapeHtml(item.slug)}" aria-label="Increase quantity">+</button><button class="remove-link" type="button" data-action="remove" data-slug="${escapeHtml(item.slug)}">Remove</button></div></div><strong class="line-total">${money(Number(item.price) * item.quantity)}</strong></article>`).join("");
-  document.querySelector("#page-content").innerHTML = `<section class="page-intro"><p class="eyebrow">YOUR SELECTION</p><h1>Shopping bag</h1></section><section class="cart-page section-wrap">${items.length ? `<div class="cart-layout"><div class="cart-items">${rows}<a class="text-link" href="store.html">← CONTINUE SHOPPING</a></div><aside class="cart-summary"><h2>Cart totals</h2><div><span>Subtotal</span><strong>${money(total)}</strong></div><div><span>Delivery</span><strong>Digital download</strong></div><div class="summary-total"><span>Total</span><strong>${money(total)}</strong></div><button type="button" class="button button-dark full-button" data-action="checkout-start">PROCEED TO CHECKOUT</button><p>Secure checkout · Instant digital delivery</p></aside></div><section class="checkout-panel" hidden><div class="checkout-heading"><p class="eyebrow">ALMOST YOURS</p><h2>Checkout</h2><p>Isi detail kontak untuk melanjutkan pesanan.</p></div><form id="checkout-form"><label>Nama lengkap<input name="name" autocomplete="name" required></label><label>Email<input name="email" type="email" autocomplete="email" required></label><label>Metode pembayaran<select name="payment" required><option value="">Pilih metode</option><option>QRIS</option><option>Virtual account</option><option>E-wallet</option></select></label><button class="button button-dark full-button" type="submit">PLACE DEMO ORDER · ${money(total)}</button><p class="checkout-note">Demo storefront: formulir ini tidak memproses pembayaran atau menyimpan pesanan ke server.</p></form></section>` : `<div class="cart-empty"><p class="empty-bag-icon">♧</p><h2>Your bag is empty</h2><p>Temukan preset untuk foto-foto favoritmu.</p><a class="button button-dark" href="store.html">SHOP PRESETS</a></div>`}</section>`;
+  const rows = items.map(item => `<article class="cart-row"><div class="cart-product-cell"><button class="cart-remove" type="button" data-action="remove" data-slug="${escapeHtml(item.slug)}" aria-label="Remove ${escapeHtml(item.name)}">×</button><a class="cart-thumb" href="product.html?slug=${encodeURIComponent(item.slug)}"><img src="${escapeHtml(item.image)}" alt=""></a><div class="cart-item-info"><a class="product-title" href="product.html?slug=${encodeURIComponent(item.slug)}">${escapeHtml(item.name)}</a><span>${escapeHtml(item.format || "Mobile (DNG)")}</span></div></div><span class="cart-price" data-label="Price">${money(item.price)}</span><span class="cart-quantity" data-label="Quantity">1</span><strong class="line-total" data-label="Subtotal">${money(item.price)}</strong></article>`).join("");
+  document.querySelector("#page-content").innerHTML = `<section class="page-intro"><p class="eyebrow">YOUR SELECTION</p><h1>Shopping bag</h1></section><section class="cart-page section-wrap">${items.length ? `<div class="cart-layout"><div class="cart-items"><div class="cart-table-header" aria-hidden="true"><span>Product</span><span>Price</span><span>Quantity</span><span>Subtotal</span></div>${rows}<div class="cart-actions"><form class="coupon-form" id="coupon-form"><label class="visually-hidden" for="coupon-code">Coupon code</label><input id="coupon-code" name="code" type="text" placeholder="Coupon code" autocomplete="off"><button class="button button-dark" type="submit">APPLY COUPON</button><p class="coupon-message" role="status" aria-live="polite" hidden></p></form><a class="text-link" href="store.html">← CONTINUE SHOPPING</a></div></div><aside class="cart-summary"><h2>Cart totals</h2><div><span>Subtotal</span><strong data-cart-subtotal>${money(total)}</strong></div><div class="coupon-discount-row" data-coupon-row hidden><span data-coupon-label>Discount</span><strong data-coupon-discount></strong></div><div><span>Delivery</span><strong>Digital download</strong></div><div class="summary-total"><span>Total</span><strong data-cart-total>${money(total)}</strong></div><button type="button" class="button button-dark full-button" data-action="checkout-start">PROCEED TO CHECKOUT</button><p>Secure checkout · Instant digital delivery</p></aside></div><section class="checkout-panel" hidden><div class="checkout-heading"><p class="eyebrow">ALMOST YOURS</p><h2>Checkout</h2><p>Isi detail kontak untuk melanjutkan pesanan.</p></div><form id="checkout-form"><label>Nama lengkap<input name="name" autocomplete="name" required></label><label>Email<input name="email" type="email" autocomplete="email" required></label><label>Metode pembayaran<select name="payment" required><option value="">Pilih metode</option><option>QRIS</option><option>Virtual account</option><option>E-wallet</option></select></label><button class="button button-dark full-button" type="submit" data-checkout-total>PLACE DEMO ORDER · ${money(total)}</button><p class="checkout-note">Demo storefront: formulir ini tidak memproses pembayaran atau menyimpan pesanan ke server.</p></form></section>` : `<div class="cart-empty"><p class="empty-bag-icon">♧</p><h2>Your bag is empty</h2><p>Temukan preset untuk foto-foto favoritmu.</p><a class="button button-dark" href="store.html">SHOP PRESETS</a></div>`}</section>`;
 }
 
-function addToCart(product, quantity = 1, format = "Mobile (DNG)") {
+function addToCart(product, format = "Mobile (DNG)") {
   const items = cartItems();
-  const existing = items.find(item => item.slug === product.slug && item.format === format);
-  if (existing) existing.quantity += quantity;
-  else items.push({ slug: product.slug, name: product.name, price: Number(product.price), image: productPhoto(product), format, quantity });
+  const existing = items.find(item => item.slug === product.slug);
+  if (!existing) items.push({ slug: product.slug, name: product.name, price: Number(product.price), image: productPhoto(product), format, quantity: 1 });
   saveCart(items);
   const modal = document.querySelector(".added-modal");
+  modal.querySelector(".eyebrow").textContent = existing ? "ALREADY IN YOUR BAG" : "ADDED TO YOUR BAG";
+  modal.querySelector("h2").textContent = existing ? "This preset is already selected." : "A good choice.";
   document.querySelector(".added-product").innerHTML = `<img src="${productPhoto(product)}" alt=""><div><strong>${escapeHtml(product.name)}</strong><span>${money(product.price)}</span></div>`;
   document.querySelector(".modal-backdrop").hidden = false;
   modal.hidden = false;
@@ -199,12 +209,6 @@ function closeModal() {
   const backdrop = document.querySelector(".modal-backdrop");
   if (backdrop) backdrop.hidden = true;
   document.body.classList.remove("modal-open");
-}
-
-function updateCartQuantity(slug, amount) {
-  const items = cartItems().map(item => item.slug === slug ? { ...item, quantity: item.quantity + amount } : item).filter(item => item.quantity > 0);
-  saveCart(items);
-  renderCart();
 }
 
 function showSearchResults(query) {
@@ -236,13 +240,12 @@ function bindEvents() {
       if (product) addToCart(product);
     }
     if (action === "add-detail" && activeProduct) {
-      addToCart(activeProduct, Number(document.querySelector("#quantity-value").textContent), document.querySelector("#product-format").value);
+      addToCart(activeProduct, document.querySelector("#product-format").value);
     }
-    if (action === "quantity-down" || action === "quantity-up") {
-      const output = document.querySelector("#quantity-value");
-      output.textContent = Math.max(1, Number(output.textContent) + (action === "quantity-up" ? 1 : -1));
+    if (action === "buy-now" && activeProduct) {
+      addToCart(activeProduct, document.querySelector("#product-format").value);
+      location.href = "cart.html?checkout=1";
     }
-    if (action === "cart-down" || action === "cart-up") updateCartQuantity(event.target.closest("[data-slug]").dataset.slug, action === "cart-up" ? 1 : -1);
     if (action === "remove") {
       const slug = event.target.closest("[data-slug]").dataset.slug;
       saveCart(cartItems().filter(item => item.slug !== slug)); renderCart();
@@ -280,6 +283,45 @@ function bindEvents() {
       const name = formData.get("name");
       saveCart([]);
       document.querySelector(".cart-page").innerHTML = `<div class="order-confirmation"><p class="eyebrow">DEMO ORDER</p><h2>Terima kasih, ${escapeHtml(name)}.</h2><p>Simulasi checkout berhasil. Tidak ada pembayaran yang diproses dan pesanan belum dikirim ke server.</p><a class="button button-dark" href="store.html">BACK TO STORE</a></div>`;
+    }
+    if (event.target.matches("#coupon-form")) {
+      event.preventDefault();
+      const code = new FormData(event.target).get("code").trim();
+      const message = event.target.querySelector(".coupon-message");
+      const submitButton = event.target.querySelector("button[type=submit]");
+      if (!code) {
+        message.textContent = "Enter a coupon code first.";
+        message.hidden = false;
+        return;
+      }
+      submitButton.disabled = true;
+      message.textContent = "Checking coupon…";
+      message.hidden = false;
+      fetch(`${API_URL}/vouchers/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, items: cartItems().map(item => ({ slug: item.slug, quantity: 1 })) }),
+      }).then(async response => {
+        const result = await response.json();
+        if (!response.ok || !result.valid) throw new Error(result.message || "This coupon code is invalid.");
+        const discount = Number(result.discount) || 0;
+        document.querySelector("[data-cart-subtotal]").textContent = money(result.subtotal);
+        document.querySelector("[data-coupon-label]").textContent = `Discount (${result.code} · ${result.discount_percent}%)`;
+        document.querySelector("[data-coupon-discount]").textContent = `−${money(discount)}`;
+        document.querySelector("[data-coupon-row]").hidden = false;
+        document.querySelector("[data-cart-total]").textContent = money(result.total);
+        const checkoutButton = document.querySelector("[data-checkout-total]");
+        if (checkoutButton) checkoutButton.textContent = `PLACE DEMO ORDER · ${money(result.total)}`;
+        message.textContent = `Coupon ${result.code} applied — ${result.discount_percent}% off.`;
+      }).catch(error => {
+        const baseTotal = cartItems().reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
+        document.querySelector("[data-coupon-row]").hidden = true;
+        document.querySelector("[data-cart-subtotal]").textContent = money(baseTotal);
+        document.querySelector("[data-cart-total]").textContent = money(baseTotal);
+        const checkoutButton = document.querySelector("[data-checkout-total]");
+        if (checkoutButton) checkoutButton.textContent = `PLACE DEMO ORDER · ${money(baseTotal)}`;
+        message.textContent = error.message === "Failed to fetch" ? "Coupon validation is unavailable. Your total is unchanged." : error.message;
+      }).finally(() => { submitButton.disabled = false; });
     }
   });
   document.addEventListener("keydown", event => { if (event.key === "Escape") closeModal(); });
@@ -326,7 +368,16 @@ async function init() {
   }
   if (page === "tutorial") renderTutorial();
   if (page === "about") renderAbout();
-  if (page === "cart") renderCart();
+  if (page === "cart") {
+    renderCart();
+    if (new URLSearchParams(location.search).get("checkout") === "1") {
+      const checkoutPanel = document.querySelector(".checkout-panel");
+      if (checkoutPanel) {
+        checkoutPanel.hidden = false;
+        checkoutPanel.scrollIntoView({ block: "start", behavior: "smooth" });
+      }
+    }
+  }
   updateCartCount();
 }
 

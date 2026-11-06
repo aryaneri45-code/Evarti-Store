@@ -7,6 +7,7 @@ import pool from "./config/database.js";
 
 import categoryRoutes from "./routes/categoryRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
+import voucherRoutes from "./routes/voucherRoutes.js";
 
 dotenv.config();
 
@@ -55,6 +56,7 @@ app.get("/api/health/database", async (req, res) => {
 // API Routes
 app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/vouchers", voucherRoutes);
 
 // 404 Handler
 app.use((req, res) => {

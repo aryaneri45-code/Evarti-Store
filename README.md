@@ -105,6 +105,7 @@ Frontend tersedia di `http://localhost:5500` dan API di `http://localhost:3000`.
 | `GET` | `/api/products/:slug` | Detail produk berdasarkan slug |
 | `GET` | `/api/categories` | Daftar kategori aktif |
 | `GET` | `/api/categories/:slug` | Detail kategori berdasarkan slug |
+| `POST` | `/api/vouchers/validate` | Validasi kupon `TANADA` dan hitung diskon 10% dari harga produk published |
 
 ## Pengembangan
 

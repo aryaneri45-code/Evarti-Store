@@ -80,31 +80,52 @@ test("header search opens results and navigates to the selected preset", async (
   await expect(page.getByRole("heading", { name: "Creamy Tone Preset" })).toBeVisible();
 });
 
-test("product page gallery, quantity, tabs, and add-to-bag work", async ({ page }) => {
+test("product page gallery, tabs, and one-per-product add-to-bag work", async ({ page }) => {
   await page.goto("/product.html?slug=soft-pink-preset");
   await expect(page.getByRole("heading", { name: "Soft Pink Preset" })).toBeVisible();
   await expect(page.getByText("Rp 25.000").first()).toBeVisible();
   await page.getByRole("button", { name: "Show sample 2" }).click();
   await expect(page.locator("[data-gallery-main]")).toHaveAttribute("src", /coast\.jpg/);
-  await page.getByRole("button", { name: "Increase quantity" }).click();
-  await expect(page.locator("#quantity-value")).toHaveText("2");
+  await expect(page.getByText("Maksimal 1 item untuk produk ini per pesanan")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Increase quantity" })).toHaveCount(0);
   await page.getByRole("button", { name: "Reviews (0)" }).click();
   await expect(page.getByText("Belum ada ulasan untuk preset ini.")).toBeVisible();
   await page.getByRole("button", { name: "Description" }).click();
   await page.getByRole("button", { name: "ADD TO CART" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.locator(".bag-count")).toHaveText("2");
+  await expect(page.locator(".bag-count")).toHaveText("1");
+  await page.getByRole("button", { name: "Continue shopping" }).click();
+  await page.getByRole("button", { name: "ADD TO CART" }).click();
+  await expect(page.getByText("This preset is already selected.")).toBeVisible();
+  await expect(page.locator(".bag-count")).toHaveText("1");
   await page.getByRole("link", { name: /View bag/ }).click();
   await expect(page).toHaveURL(/cart\.html/);
-  await expect(page.locator(".line-total")).toHaveText("Rp 50.000");
+  await expect(page.locator(".line-total")).toHaveText("Rp 25.000");
+  await expect(page.getByText("Mobile (DNG)")).toBeVisible();
+  await expect(page.locator(".cart-quantity")).toHaveText("1");
 });
 
-test("bag quantities, remove, and demo checkout work", async ({ page }) => {
+test("bag item limit, remove, and demo checkout work", async ({ page }) => {
+  await page.route("**/api/vouchers/validate", async route => {
+    const request = route.request().postDataJSON();
+    expect(request.code).toBe("TANADA");
+    expect(request.items).toEqual([{ slug: "creamy-tone-preset", quantity: 1 }]);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      success: true, valid: true, code: "TANADA", discount_percent: 10, subtotal: 30000, discount: 3000, total: 27000,
+    }) });
+  });
   await page.goto("/product.html?slug=creamy-tone-preset");
   await page.getByRole("button", { name: "ADD TO CART" }).click();
   await page.getByRole("link", { name: /View bag/ }).click();
-  await page.getByRole("button", { name: "Increase quantity" }).click();
-  await expect(page.locator(".line-total")).toHaveText("Rp 60.000");
+  await expect(page.getByRole("button", { name: "Increase quantity" })).toHaveCount(0);
+  await expect(page.locator(".line-total")).toHaveText("Rp 30.000");
+  await expect(page.getByText("Mobile (DNG)")).toBeVisible();
+  await expect(page.locator(".cart-quantity")).toHaveText("1");
+  await page.getByRole("textbox", { name: "Coupon code" }).fill("TANADA");
+  await page.getByRole("button", { name: "APPLY COUPON" }).click();
+  await expect(page.getByRole("status")).toHaveText("Coupon TANADA applied — 10% off.");
+  await expect(page.locator("[data-coupon-row]")).toContainText("3.000");
+  await expect(page.locator(".summary-total")).toContainText("Rp 27.000");
   await page.getByRole("button", { name: "PROCEED TO CHECKOUT" }).click();
   await page.getByLabel("Nama lengkap").fill("Test Customer");
   await page.getByLabel("Email").fill("test@example.com");
@@ -114,11 +135,67 @@ test("bag quantities, remove, and demo checkout work", async ({ page }) => {
   await expect(page.locator(".bag-count")).toHaveText("0");
 });
 
+test("invalid coupon codes leave the cart total unchanged", async ({ page }) => {
+  await page.route("**/api/vouchers/validate", route => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ success: true, valid: false, message: "Coupon code is invalid" }),
+  }));
+  await page.goto("/product.html?slug=creamy-tone-preset");
+  await page.getByRole("button", { name: "ADD TO CART" }).click();
+  await page.getByRole("link", { name: /View bag/ }).click();
+  await page.getByRole("textbox", { name: "Coupon code" }).fill("NOPE");
+  await page.getByRole("button", { name: "APPLY COUPON" }).click();
+  await expect(page.getByRole("status")).toHaveText("Coupon code is invalid");
+  await expect(page.locator("[data-coupon-row]")).toBeHidden();
+  await expect(page.locator(".summary-total")).toContainText("Rp 30.000");
+});
+
+test("buy now opens checkout with the selected product", async ({ page }) => {
+  await page.goto("/product.html?slug=soft-pink-preset");
+  await page.getByLabel("Choose your format").selectOption("Desktop (XMP)");
+  await page.getByRole("button", { name: "BUY NOW" }).click();
+  await expect(page).toHaveURL(/cart\.html\?checkout=1/);
+  await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
+  await expect(page.locator(".cart-row")).toContainText("Soft Pink Preset");
+  await expect(page.locator(".cart-row")).toContainText("Desktop (XMP)");
+  await expect(page.locator(".cart-quantity")).toHaveText("1");
+});
+
+test("legacy or edited bag data cannot show duplicate units of one product", async ({ page }) => {
+  await page.goto("/cart.html");
+  await page.evaluate(() => localStorage.setItem("evarti-store-cart-v1", JSON.stringify([
+    { slug: "soft-pink-preset", name: "Soft Pink Preset", price: 25000, quantity: 9, image: "assets/images/sample-presets/cafe-portrait.jpg" },
+    { slug: "soft-pink-preset", name: "Soft Pink Preset", price: 25000, quantity: 2, image: "assets/images/sample-presets/cafe-portrait.jpg" },
+  ])));
+  await page.reload();
+  await expect(page.locator(".cart-row")).toHaveCount(1);
+  await expect(page.locator(".cart-quantity")).toHaveText("1");
+  await expect(page.locator(".line-total")).toHaveText("Rp 25.000");
+});
+
+test("cart uses a four-column summary on desktop and compact item cards on mobile", async ({ page }) => {
+  await page.goto("/cart.html");
+  await page.evaluate(() => localStorage.setItem("evarti-store-cart-v1", JSON.stringify([
+    { slug: "soft-pink-preset", name: "Soft Pink Preset", price: 25000, quantity: 1, image: "assets/images/sample-presets/cafe-portrait.jpg" },
+  ])));
+  await page.reload();
+  await expect(page.locator(".cart-table-header")).toContainText("Product");
+  await expect(page.locator(".cart-table-header")).toContainText("Price");
+  await expect(page.locator(".cart-table-header")).toContainText("Quantity");
+  await expect(page.locator(".cart-table-header")).toContainText("Subtotal");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator(".cart-table-header")).toBeHidden();
+  await expect(page.locator(".cart-quantity")).toBeVisible();
+  const widths = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }));
+  expect(widths.content).toBeLessThanOrEqual(widths.viewport);
+});
+
 test("removing the last item returns the bag to its empty state", async ({ page }) => {
   await page.goto("/product.html?slug=vintage-film-preset");
   await page.getByRole("button", { name: "ADD TO CART" }).click();
   await page.getByRole("link", { name: /View bag/ }).click();
-  await page.getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("button", { name: "Remove Vintage Film Preset" }).click();
   await expect(page.getByRole("heading", { name: "Your bag is empty" })).toBeVisible();
   await expect(page.locator(".bag-count")).toHaveText("0");
 });
