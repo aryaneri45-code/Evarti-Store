@@ -27,8 +27,14 @@ test("home page, product cards, and sample images load", async ({ page }) => {
   const logo = page.locator(".site-header .wordmark img");
   await expect(logo).toHaveAttribute("src", "assets/images/evarti-logo-horizontal.png");
   await expect.poll(() => logo.evaluate(image => image.complete && image.naturalWidth > 0)).toBeTruthy();
+  await expect(page.locator(".bag-link .bag-icon")).toBeVisible();
+  await expect(page.locator(".bag-link")).toHaveAttribute("aria-label", "Shopping bag, 0 items");
   await expect(page.getByRole("heading", { name: /Soft light/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Our picks" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Kata mereka tentang Olive Preset" })).toBeVisible();
+  await expect(page.locator(".testimonial-grid article")).toHaveCount(2);
+  await expect(page.locator(".testimonial-grid")).toContainText("Presetnya bagus bangett 😻");
+  await expect(page.locator(".testimonial-grid")).toContainText("Dinda Alifia");
   await expect(page.getByRole("article").filter({ hasText: "Soft Pink Preset" })).toBeVisible();
   expect(await page.locator(".product-card").count()).toBe(3);
 
@@ -46,6 +52,8 @@ test("footer displays all requested payment marks", async ({ page }) => {
   await page.goto("/");
   const logos = page.locator(".payment-logo img");
   await expect(logos).toHaveCount(6);
+  await expect(page.locator(".payment-va")).toHaveText("VA");
+  await expect(page.locator(".payment-va")).toHaveAttribute("aria-label", "Virtual Account (VA)");
   const loaded = await logos.evaluateAll(async images => {
     await Promise.all(images.map(image => {
       image.loading = "eager";
@@ -86,11 +94,9 @@ test("product page gallery, tabs, and one-per-product add-to-bag work", async ({
   await expect(page.getByText("Rp 25.000").first()).toBeVisible();
   await page.getByRole("button", { name: "Show sample 2" }).click();
   await expect(page.locator("[data-gallery-main]")).toHaveAttribute("src", /coast\.jpg/);
-  await expect(page.getByText("Maksimal 1 item untuk produk ini per pesanan")).toBeVisible();
+  await expect(page.getByText(/Maksimal 1 item per produk/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Increase quantity" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Reviews (0)" }).click();
-  await expect(page.getByText("Belum ada ulasan untuk preset ini.")).toBeVisible();
-  await page.getByRole("button", { name: "Description" }).click();
+  await expect(page.getByText(/hanya ilustrasi suasana/)).toBeVisible();
   await page.getByRole("button", { name: "ADD TO CART" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.locator(".bag-count")).toHaveText("1");
@@ -126,12 +132,14 @@ test("bag item limit, remove, and demo checkout work", async ({ page }) => {
   await expect(page.getByRole("status")).toHaveText("Coupon TANADA applied — 10% off.");
   await expect(page.locator("[data-coupon-row]")).toContainText("3.000");
   await expect(page.locator(".summary-total")).toContainText("Rp 27.000");
-  await page.getByRole("button", { name: "PROCEED TO CHECKOUT" }).click();
+  await page.getByRole("button", { name: "COBA CHECKOUT DEMO" }).click();
   await page.getByLabel("Nama lengkap").fill("Test Customer");
   await page.getByLabel("Email").fill("test@example.com");
+  await page.getByLabel("Metode pembayaran").selectOption("virtual-account");
+  await expect(page.getByLabel("Metode pembayaran")).toHaveValue("virtual-account");
   await page.getByLabel("Metode pembayaran").selectOption({ label: "QRIS" });
   await page.getByRole("button", { name: /PLACE DEMO ORDER/ }).click();
-  await expect(page.getByRole("heading", { name: /Terima kasih, Test Customer/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Simulasi selesai, Test Customer/ })).toBeVisible();
   await expect(page.locator(".bag-count")).toHaveText("0");
 });
 
@@ -154,9 +162,9 @@ test("invalid coupon codes leave the cart total unchanged", async ({ page }) => 
 test("buy now opens checkout with the selected product", async ({ page }) => {
   await page.goto("/product.html?slug=soft-pink-preset");
   await page.getByLabel("Choose your format").selectOption("Desktop (XMP)");
-  await page.getByRole("button", { name: "BUY NOW" }).click();
+  await page.getByRole("button", { name: "COBA CHECKOUT" }).click();
   await expect(page).toHaveURL(/cart\.html\?checkout=1/);
-  await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Checkout demo" })).toBeVisible();
   await expect(page.locator(".cart-row")).toContainText("Soft Pink Preset");
   await expect(page.locator(".cart-row")).toContainText("Desktop (XMP)");
   await expect(page.locator(".cart-quantity")).toHaveText("1");
@@ -245,4 +253,29 @@ test("mobile navigation works without horizontal overflow", async ({ page }) => 
   await expect(page.getByRole("navigation")).toBeVisible();
   await page.getByRole("navigation").getByRole("link", { name: "Tutorial" }).click();
   await expect(page).toHaveURL(/tutorial\.html/);
+});
+
+test("mobile catalog keeps product cards readable and checkout is identified as demo", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/store.html");
+  await expect(page.locator(".demo-banner")).toContainText("Checkout belum memproses pembayaran");
+  const layout = await page.locator(".store-product-grid").evaluate(grid => ({
+    columns: getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+    buttonHeight: grid.querySelector(".add-button").getBoundingClientRect().height,
+  }));
+  expect(layout.columns).toBe(2);
+  expect(layout.buttonHeight).toBeGreaterThanOrEqual(44);
+});
+
+test("product with real preview images shows an interactive comparison", async ({ page }) => {
+  const withPreview = { ...catalog, data: catalog.data.map((product, index) => index === 0 ? {
+    ...product,
+    before_image: "assets/images/sample-presets/cafe-portrait.jpg",
+    after_image: "assets/images/sample-presets/coffee.jpg",
+  } : product) };
+  await page.route("http://localhost:3000/api/products**", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(withPreview) }));
+  await page.goto("/product.html?slug=soft-pink-preset");
+  await expect(page.locator(".comparison")).toBeVisible();
+  await page.getByRole("slider", { name: "Bandingkan sebelum dan sesudah" }).fill("75");
+  await expect(page.locator(".comparison")).toHaveCSS("--reveal", "75%");
 });

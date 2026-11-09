@@ -12,6 +12,10 @@ Etalase digital untuk koleksi Lightroom preset dan produk kreatif Evarti Store. 
 
 > Checkout frontend hanya simulasi. Backend belum menyimpan pesanan, memproses pembayaran, atau mengirim file digital.
 
+## Foto pratinjau produk
+
+Foto contoh di `frontend/assets/images/sample-presets/` adalah ilustrasi, bukan bukti hasil preset. Untuk menampilkan perbandingan sebelum/sesudah yang asli, simpan **dua foto dari sumber yang sama** di `product_images` untuk satu produk: satu baris dengan `alt_text` persis `Before`, satu baris dengan `alt_text` persis `After`. Kolom `image_path` harus berisi URL atau path gambar yang dapat diakses browser. API katalog akan mengembalikan keduanya sebagai `before_image` dan `after_image`, lalu halaman produk menampilkan slider perbandingan. Bila pasangan gambar belum ada, halaman akan menampilkan label ilustrasi.
+
 ## Struktur proyek
 
 ```text

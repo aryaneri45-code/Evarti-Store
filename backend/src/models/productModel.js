@@ -17,9 +17,23 @@ export const getAllProducts = async () => {
                 SELECT pi.image_path
                 FROM product_images pi
                 WHERE pi.product_id = p.id
+                ORDER BY (pi.alt_text = 'After') DESC, pi.sort_order ASC, pi.id ASC
+                LIMIT 1
+            ) AS image,
+            (
+                SELECT pi.image_path
+                FROM product_images pi
+                WHERE pi.product_id = p.id AND pi.alt_text = 'Before'
                 ORDER BY pi.sort_order ASC, pi.id ASC
                 LIMIT 1
-            ) AS image
+            ) AS before_image,
+            (
+                SELECT pi.image_path
+                FROM product_images pi
+                WHERE pi.product_id = p.id AND pi.alt_text = 'After'
+                ORDER BY pi.sort_order ASC, pi.id ASC
+                LIMIT 1
+            ) AS after_image
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.status = 'published'
