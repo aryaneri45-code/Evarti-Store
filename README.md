@@ -2,6 +2,8 @@
 
 Etalase digital untuk koleksi Lightroom preset dan produk kreatif Evarti Store. Proyek ini berisi frontend berbasis HTML, CSS, dan JavaScript serta REST API berbasis Node.js, Express, dan MySQL.
 
+Panduan deploy ke VPS menggunakan Caddy atau Nginx tersedia di [DEPLOY.md](DEPLOY.md).
+
 ## Fitur saat ini
 
 - Homepage, katalog preset, filter kategori, pengurutan harga, dan pencarian.
@@ -142,3 +144,17 @@ npm run screenshot
 ```
 
 Screenshot disimpan sebagai `artifacts/evarti-homepage.png` secara default. Lokasi lain bisa diberikan sebagai argumen, misalnya `npm run screenshot -- /tmp/evarti.png`.
+
+
+## Pembaruan UI/UX
+
+Tampilan memakai warna krem dan olive, tipografi editorial, serta tata letak responsif. Katalog mendukung pencarian langsung; kata kunci, kategori, dan pengurutan tersimpan di URL. Dialog keranjang mendukung navigasi keyboard, Escape, dan pengembalian fokus. Kondisi katalog kosong dan gangguan koneksi memiliki pesan serta tindakan pemulihan tersendiri. Animasi mengikuti preferensi reduced motion.
+
+Screenshot halaman tertentu dan ukuran layar dapat dibuat dengan argumen tambahan:
+
+```bash
+npm run screenshot -- artifacts/evarti-homepage-mobile.png /index.html 390
+npm run screenshot -- artifacts/evarti-store-desktop.png /store.html 1440
+```
+
+Skrip screenshot dan pengujian browser memakai katalog contoh; pemeriksaan ini tidak membutuhkan MySQL dan tidak memverifikasi pembayaran atau data produksi.

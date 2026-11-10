@@ -7,6 +7,8 @@ import { setTimeout as delay } from "node:timers/promises";
 const port = Number(process.env.PORT || 5500);
 const url = `http://127.0.0.1:${port}`;
 const output = process.argv[2] || "artifacts/evarti-homepage.png";
+const pagePath = process.argv[3] || "/";
+const viewportWidth = Number(process.argv[4] || devices["Desktop Chrome"].viewport.width);
 const server = spawn("python3", ["-m", "http.server", String(port), "--directory", "frontend"], {
   stdio: "ignore",
 });
@@ -27,7 +29,7 @@ try {
   if (!ready) throw new Error(`Frontend did not start at ${url}`);
 
   browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: devices["Desktop Chrome"].viewport });
+  const page = await browser.newPage({ viewport: { width: viewportWidth, height: 900 } });
   await page.route("http://localhost:3000/api/products", route => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -45,7 +47,10 @@ try {
     contentType: "application/json",
     body: JSON.stringify({ success: true, data: [{ name: "Mobile Presets", slug: "mobile-presets" }] }),
   }));
-  await page.goto(url, { waitUntil: "networkidle" });
+  await page.goto(new URL(pagePath, url).href, { waitUntil: "networkidle" });
+  await page.locator("main img").evaluateAll(async images => {
+    await Promise.all(images.map(image => { image.loading = "eager"; return image.decode().catch(() => null); }));
+  });
   await mkdir(dirname(output), { recursive: true });
   await page.screenshot({ path: output, fullPage: true });
   await browser.close();

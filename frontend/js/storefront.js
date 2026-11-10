@@ -8,6 +8,32 @@ let categories = [];
 let activeCategory = "all";
 let activeSort = "featured";
 let activeProduct = null;
+let catalogUnavailable = false;
+let modalTrigger = null;
+
+const icon = name => {
+  const paths = {
+    menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+    search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
+    arrow: '<path d="M4 12h16m-6-6 6 6-6 6"/>',
+    spark: '<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/>',
+    sliders: '<path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="2" fill="currentColor"/><circle cx="16" cy="17" r="2" fill="currentColor"/>',
+    device: '<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 18h4"/>',
+    book: '<path d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1Zm0 0v15"/>',
+    bag: '<path d="M5 8h14l1 13H4L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+    close: '<path d="m6 6 12 12M6 18 18 6"/>',
+  };
+  return `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.arrow}</svg>`;
+};
+const storeQuery = () => new URLSearchParams(location.search).get("q") || "";
+function syncStoreUrl(query) {
+  const url = new URL(location.href);
+  for (const [key, value] of Object.entries({ q: query, category: activeCategory === "all" ? "" : activeCategory, sort: activeSort === "featured" ? "" : activeSort })) {
+    if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
+  }
+  history.replaceState(null, "", url);
+}
+
 
 const money = value => new Intl.NumberFormat("id-ID", {
   style: "currency", currency: "IDR", maximumFractionDigits: 0,
@@ -44,10 +70,10 @@ const countCart = () => cartItems().reduce((sum, item) => sum + item.quantity, 0
 
 function renderHeader() {
   document.querySelector("#site-header").innerHTML = `
-    <header class="site-header">
+    <a class="skip-link" href="#page-content">Langsung ke konten</a><header class="site-header">
       <a class="wordmark" href="index.html" aria-label="Evarti home"><img src="assets/images/evarti-logo-horizontal.png" alt="Evarti — Weaving stories into your life"></a>
-      <button class="menu-toggle icon-button" type="button" aria-label="Open menu" aria-expanded="false" data-action="menu">☰</button>
-      <nav class="primary-nav" aria-label="Main navigation">
+      <button class="menu-toggle icon-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="primary-nav" data-action="menu">${icon("menu")}</button>
+      <nav id="primary-nav" class="primary-nav" aria-label="Main navigation">
         <a href="index.html" ${document.body.dataset.page === "home" ? 'aria-current="page"' : ""}>Home</a>
         <a href="store.html" ${document.body.dataset.page === "store" ? 'aria-current="page"' : ""}>Preset</a>
         <a href="tutorial.html" ${document.body.dataset.page === "tutorial" ? 'aria-current="page"' : ""}>Tutorial</a>
@@ -55,22 +81,22 @@ function renderHeader() {
       </nav>
       <div class="header-tools">
         <a class="icon-button bag-link" href="cart.html" aria-label="Shopping bag, ${countCart()} items"><svg class="bag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 8h14l1 13H4L5 8Z"></path><path d="M9 8V6a3 3 0 0 1 6 0v2"></path></svg><span class="bag-count">${countCart()}</span></a>
-        <button class="icon-button" type="button" aria-label="Search presets" data-action="search"><svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m16 16 5 5"></path></svg></button>
+        <button class="icon-button" type="button" aria-label="Search presets" aria-expanded="false" aria-controls="search-panel" data-action="search"><svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m16 16 5 5"></path></svg></button>
       </div>
     </header>
-    <div class="search-panel" hidden>
-      <form class="search-form" role="search"><label for="site-search">Search presets</label><input id="site-search" type="search" placeholder="Try ‘warm’ or ‘film’" autocomplete="off"><button class="icon-button" type="submit" aria-label="Submit search">⌕</button></form>
+    <div id="search-panel" class="search-panel" hidden>
+      <form class="search-form" role="search"><label for="site-search">Search presets</label><input id="site-search" type="search" placeholder="Cari nama preset atau tone, misalnya warm…" autocomplete="off"><button class="icon-button" type="submit" aria-label="Submit search">${icon("arrow")}</button><button class="icon-button" type="button" aria-label="Tutup pencarian" data-action="search">${icon("close")}</button></form>
       <div class="search-results" aria-live="polite"></div>
-    </div><div class="demo-banner">Ini adalah demo katalog. Checkout belum memproses pembayaran atau mengirim file.</div>`;
+    </div><div class="demo-banner"><span class="demo-tag">DEMO STORE</span><span>Checkout belum memproses pembayaran atau mengirim file.</span><a href="about.html#terms">Pelajari selengkapnya <span aria-hidden="true">↗</span></a></div>`;
 }
 
 function renderFooter() {
   document.querySelector("#site-footer").innerHTML = `
     <footer class="site-footer">
-      <div class="footer-social"><span>EVARTI PRESETS</span></div>
+      <div class="footer-social"><span>THOUGHTFULLY MADE. BEAUTIFULLY YOURS.</span></div>
       <div class="footer-columns">
-        <div><a class="wordmark footer-mark" href="index.html" aria-label="Evarti home"><img src="assets/images/evarti-logo-horizontal.png" alt="Evarti — Weaving stories into your life"></a></div>
-        <div><h3>Help &amp; support</h3><a href="about.html#terms">Terms of Service</a><a href="tutorial.html#faq">FAQs</a></div>
+        <div><a class="wordmark footer-mark" href="index.html" aria-label="Evarti home"><img src="assets/images/evarti-logo-horizontal.png" alt="Evarti — Weaving stories into your life"></a><p class="footer-description">A little more feeling in every frame.<br>Preset untuk cerita sehari-harimu.</p></div>
+        <div><h3>Jelajahi Evarti</h3><a href="store.html">Koleksi preset</a><a href="tutorial.html">Panduan pemasangan</a><a href="about.html#terms">Terms of Service</a><a href="tutorial.html#faq">FAQs</a></div>
         <div><h3>Metode pada simulasi</h3><div class="payment-logos" aria-label="Metode pembayaran yang ditampilkan dalam simulasi">
           <span class="payment-logo payment-mastercard"><img src="assets/images/payment-logos/mastercard.svg" alt="Mastercard" loading="lazy"></span>
           <span class="payment-logo payment-visa"><img src="assets/images/payment-logos/visa.svg" alt="Visa" loading="lazy"></span>
@@ -89,7 +115,7 @@ function renderOverlays() {
   document.querySelector("#site-overlays").innerHTML = `
     <div class="modal-backdrop" hidden data-action="close-modal"></div>
     <section class="added-modal" role="dialog" aria-modal="true" aria-labelledby="added-title" hidden>
-      <button class="modal-close icon-button" type="button" aria-label="Close" data-action="close-modal">×</button>
+      <button class="modal-close icon-button" type="button" aria-label="Close" data-action="close-modal">${icon("close")}</button>
       <p class="eyebrow">ADDED TO YOUR BAG</p><h2 id="added-title">A good choice.</h2><div class="added-product"></div>
       <a class="button button-dark full-button" href="cart.html">View bag (<span class="modal-count">0</span>)</a>
       <button class="text-button continue-shopping" type="button" data-action="close-modal">Continue shopping</button>
@@ -123,33 +149,37 @@ function cardMarkup(product) {
 }
 
 function gridMarkup(list) {
-  if (!list.length) return '<p class="empty-note">Belum ada preset di kategori ini.</p>';
+  if (!list.length) return `<div class="empty-note">${icon("search")}<h3>${catalogUnavailable ? "Koleksi belum dapat dimuat" : "Belum ada preset di kategori ini."}</h3><p>${catalogUnavailable ? "Koneksi katalog sedang bermasalah. Coba muat ulang halaman." : "Coba kata kunci lain atau lihat semua koleksi."}</p><button class="button button-outline" type="button" data-action="${catalogUnavailable ? "retry" : "reset-filters"}">${catalogUnavailable ? "Coba lagi" : "Lihat semua preset"}</button></div>`;
   return list.map(cardMarkup).join("");
 }
 
 function renderHome() {
-  const collage = ["cafe-portrait.jpg", "coffee.jpg", "portrait.jpg", "fashion.jpg", "sunrise.jpg", "coast.jpg", "portrait.jpg", "cafe-portrait.jpg", "coffee.jpg"];
+  const collage = ["cafe-portrait.jpg", "coffee.jpg", "portrait.jpg", "fashion.jpg", "sunrise.jpg", "coast.jpg"];
   document.querySelector("#page-content").innerHTML = `
-    <section class="hero-campaign">
-      <div class="hero-collage">${collage.map((image, index) => `<img src="${IMAGE_DIR}${image}" alt="Evarti preset photo example ${index + 1}" ${index > 2 ? 'loading="lazy"' : ""}>`).join("")}
-        <span class="collage-title">Everyday<br><i>stories</i></span>
-      </div>
-      <div class="hero-copy"><span class="eyebrow">NEW DROP</span><h1>Soft light.<br><em>Real moments.</em></h1><p>Presets made for the photos that feel like you.</p><a class="button button-outline" href="store.html">SHOP NOW <span>↗</span></a></div>
-    </section>
-    <section class="home-picks section-wrap" aria-labelledby="picks-title"><div class="center-heading"><h2 id="picks-title">Our picks</h2><p>Find your own kind of beautiful.</p></div><div class="product-grid home-product-grid">${gridMarkup(products.filter(product => product.is_featured).slice(0, 6))}</div><a class="text-link view-all" href="store.html">VIEW ALL PRESETS <span>↗</span></a></section>
+    <div class="hero-banner"><section class="hero-campaign">
+      <div class="hero-copy"><p class="eyebrow"><span class="eyebrow-line"></span> PRESETS FOR YOUR EVERYDAY</p><h1>Soft light.<br><em>Real moments.</em></h1><p>Warna yang lembut. Cerita yang terasa dekat.<br>Temukan preset Lightroom untuk foto yang terasa seperti dirimu.</p><div class="hero-actions"><a class="button button-dark" href="store.html">Jelajahi preset ${icon("arrow")}</a><a class="hero-guide" href="tutorial.html">Baru mulai? Lihat panduan <span aria-hidden="true">↗</span></a></div><div class="hero-compatibility">${icon("device")}<span>Lightroom Mobile &amp; Desktop</span><span class="compatibility-dot" aria-hidden="true">·</span><span>DNG &amp; XMP</span></div></div>
+      <div class="hero-visual"><div class="hero-photo-main"><img src="${IMAGE_DIR}cafe-portrait.jpg" alt="Potret dengan cahaya hangat di kafe" fetchpriority="high"><span class="hero-photo-caption">THE EVERYDAY COLLECTION — 01</span></div><div class="hero-photo-small"><img src="${IMAGE_DIR}coast.jpg" alt="Jalan di antara tebing dengan nuansa warna hangat"><span>little moments, lasting feelings.</span></div><span class="hero-stamp">${icon("spark")} MADE FOR<br>YOUR MOMENTS</span><span class="hero-image-note">Foto ilustrasi · Bukan hasil edit preset</span></div>
+    </section></div>
+    <div class="collection-note"><span>FIND YOUR EVERYDAY TONE</span><span>Soft tones. Simple edits. More you.</span><a href="store.html">Temukan koleksimu ${icon("arrow")}</a></div>
+    <section class="home-picks section-wrap" aria-labelledby="picks-title"><div class="section-heading"><div><p class="eyebrow">CURATED FOR YOU</p><h2 id="picks-title">Our picks<span class="heading-dot">.</span></h2><p>Sentuhan kecil untuk foto favoritmu.</p></div><a class="text-link" href="store.html">Lihat semua preset ${icon("arrow")}</a></div><div class="product-grid home-product-grid">${gridMarkup((products.some(product => product.is_featured) ? products.filter(product => product.is_featured) : products).slice(0, 6))}</div></section>
     <section class="why-section"><p class="eyebrow">A LITTLE ABOUT US</p><h2>Why Evarti Presets?</h2><p class="why-copy">Setiap preset Evarti dibuat untuk membantu foto sehari-hari terasa lebih hidup. Pilih tone yang kamu suka, aplikasikan di Lightroom, lalu sesuaikan sedikit sampai hasilnya terasa milikmu.</p><a class="text-link" href="about.html">READ MORE <span>↗</span></a></section>
-    <section class="benefit-strip"><article><span class="benefit-icon">✧</span><h3>Pilih tone</h3><p>Jelajahi gaya warna yang tersedia.</p></article><article><span class="benefit-icon">♡</span><h3>Pilih format</h3><p>Mobile DNG atau Desktop XMP.</p></article><article><span class="benefit-icon">↗</span><h3>Pelajari cara pakai</h3><p>Lihat panduan pemasangan preset.</p></article><article><span class="benefit-icon">⌑</span><h3>Lihat detail</h3><p>Periksa contoh dan informasi produk.</p></article></section>
+    <section class="benefit-strip"><article><span class="benefit-icon">${icon("sliders")}</span><h3>Pilih tone</h3><p>Jelajahi gaya warna yang tersedia.</p></article><article><span class="benefit-icon">${icon("device")}</span><h3>Pilih format</h3><p>Mobile DNG atau Desktop XMP.</p></article><article><span class="benefit-icon">${icon("book")}</span><h3>Pelajari cara pakai</h3><p>Lihat panduan pemasangan preset.</p></article><article><span class="benefit-icon">${icon("spark")}</span><h3>Lihat detail</h3><p>Periksa contoh dan informasi produk.</p></article></section>
     <section class="testimonial-section section-wrap" aria-labelledby="testimonial-title"><div class="center-heading"><p class="eyebrow">ULASAN PELANGGAN</p><h2 id="testimonial-title">Kata mereka tentang Olive Preset</h2></div><div class="testimonial-grid"><article><span class="stars" aria-label="5 dari 5 bintang">★★★★★</span><blockquote>“Presetnya bagus bangett 😻”</blockquote><strong>Sekar</strong><span class="review-product">Olive Preset</span></article><article><span class="stars" aria-label="5 dari 5 bintang">★★★★★</span><blockquote>“Awal ragu, tapi hasilnya keren bangett ga kaya di oren yang pada jual murah 😂”</blockquote><strong>Dinda Alifia</strong><span class="review-product">Olive Preset</span></article></div></section>
     <section class="instagram-band"><p>INSPIRASI FOTO</p><div>${collage.slice(0, 5).map(image => `<img src="${IMAGE_DIR}${image}" alt="Foto ilustrasi Evarti" loading="lazy">`).join("")}</div></section>`;
 }
 
 function renderStore(query = "") {
   const page = document.querySelector("#page-content");
-  page.innerHTML = `<section class="page-intro"><p class="eyebrow">THE EVARTI COLLECTION</p><h1>Preset Store</h1><p>Find a tone that feels like yours.</p></section>
-    <section class="store-section section-wrap"><div class="store-toolbar"><div class="category-filters" aria-label="Filter by category"><button type="button" class="filter-chip ${activeCategory === "all" ? "is-active" : ""}" data-category-filter="all">All presets</button>${categories.map(category => `<button type="button" class="filter-chip ${activeCategory === category.slug ? "is-active" : ""}" data-category-filter="${escapeHtml(category.slug)}">${escapeHtml(category.name)}</button>`).join("")}</div><label class="sort-control">Sort by <select id="sort-products"><option value="featured">Featured</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="name">Name</option></select></label></div>
-    <div class="product-grid store-product-grid">${gridMarkup(filteredProducts(query))}</div><p class="store-count">Showing ${filteredProducts(query).length} presets</p></section>`;
-  const sort = document.querySelector("#sort-products");
-  if (sort) sort.value = activeSort;
+  page.innerHTML = `<section class="page-intro"><p class="eyebrow">THE EVARTI COLLECTION</p><h1>Preset Store<span class="heading-dot">.</span></h1><p>Temukan tone yang cocok untuk ceritamu. Pilih, jelajahi, buat jadi milikmu.</p></section>
+    <section class="store-section section-wrap"><form class="catalog-search" role="search"><label for="catalog-search">Cari dalam koleksi</label><div>${icon("search")}<input id="catalog-search" type="search" placeholder="Cari preset atau tone…" value="${escapeHtml(query)}" autocomplete="off"><button class="icon-button" type="submit" aria-label="Cari koleksi">${icon("arrow")}</button></div></form><div class="store-toolbar"><div class="category-filters" aria-label="Filter by category"><button type="button" class="filter-chip ${activeCategory === "all" ? "is-active" : ""}" aria-pressed="${activeCategory === "all"}" data-category-filter="all">All presets</button>${categories.map(category => `<button type="button" class="filter-chip ${activeCategory === category.slug ? "is-active" : ""}" aria-pressed="${activeCategory === category.slug}" data-category-filter="${escapeHtml(category.slug)}">${escapeHtml(category.name)}</button>`).join("")}</div><label class="sort-control">Urutkan <select id="sort-products"><option value="featured">Pilihan Evarti</option><option value="price-low">Harga terendah</option><option value="price-high">Harga tertinggi</option><option value="name">Nama A–Z</option></select></label></div>
+    <p class="store-count" role="status">${filteredProducts(query).length} preset${query ? ` untuk “${escapeHtml(query)}”` : " untuk dijelajahi"}</p><div class="product-grid store-product-grid">${gridMarkup(filteredProducts(query))}</div></section>`;
+  document.querySelector("#sort-products").value = activeSort;
+}
+
+function updateStoreResults() {
+  const query = storeQuery();
+  document.querySelector(".store-product-grid").innerHTML = gridMarkup(filteredProducts(query));
+  document.querySelector(".store-count").textContent = `${filteredProducts(query).length} preset${query ? ` untuk “${query}”` : " untuk dijelajahi"}`;
 }
 
 function filteredProducts(query = "") {
@@ -169,7 +199,7 @@ function renderProduct(product) {
   const gallery = productGallery(product);
   const discounted = Number(product.compare_price) > Number(product.price);
   document.querySelector("#page-content").innerHTML = `<div class="breadcrumb"><a href="index.html">Home</a><span>/</span><a href="store.html">Preset</a><span>/</span><span>${escapeHtml(product.name)}</span></div>
-    <section class="product-detail section-wrap"><div class="product-gallery"><div class="gallery-main"><img src="${escapeHtml(gallery[0])}" alt="Foto contoh ${escapeHtml(product.name)}" data-gallery-main onerror="this.onerror=null;this.src='${fallbackPhoto(product)}'"></div><div class="gallery-thumbs">${gallery.map((image, index) => `<button type="button" class="gallery-thumb ${index === 0 ? "is-active" : ""}" data-image="${escapeHtml(image)}" aria-label="Show sample ${index + 1}"><img src="${escapeHtml(image)}" alt="" onerror="this.onerror=null;this.src='${fallbackPhoto(product)}'"></button>`).join("")}</div><p class="gallery-note">${productPreview(product) ? "Lihat perbandingan asli di bawah." : "Foto galeri ini ilustrasi, bukan hasil edit preset."}</p></div>
+    <section class="product-detail section-wrap"><div class="product-gallery"><div class="gallery-main"><img src="${escapeHtml(gallery[0])}" alt="Foto contoh ${escapeHtml(product.name)}" data-gallery-main onerror="this.onerror=null;this.src='${fallbackPhoto(product)}'"></div><div class="gallery-thumbs">${gallery.map((image, index) => `<button type="button" class="gallery-thumb ${index === 0 ? "is-active" : ""}" data-image="${escapeHtml(image)}" aria-label="Show sample ${index + 1}" aria-pressed="${index === 0}"><img src="${escapeHtml(image)}" alt="" onerror="this.onerror=null;this.src='${fallbackPhoto(product)}'"></button>`).join("")}</div><p class="gallery-note">${productPreview(product) ? "Lihat perbandingan asli di bawah." : "Foto galeri ini ilustrasi, bukan hasil edit preset."}</p></div>
     <div class="product-detail-copy"><p class="eyebrow">${escapeHtml(product.category_name || "LIGHTROOM PRESET")}</p><h1>${escapeHtml(product.name)}</h1><div class="detail-price">${discounted ? `<s>${money(product.compare_price)}</s>` : ""}<strong>${money(product.price)}</strong></div><p class="detail-description">${escapeHtml(product.description || "Preset Lightroom pilihan untuk memberi karakter pada foto-foto favoritmu.")}</p><div class="product-facts"><h2>Sebelum memilih</h2><p>Pilih format Mobile (DNG) untuk Lightroom Mobile atau Desktop (XMP) untuk Lightroom desktop. Hasil warna dapat berbeda sesuai cahaya dan foto asal.</p><p>Checkout situs ini masih demo; belum ada pembayaran atau pengiriman file otomatis.</p></div><label class="format-select">Pilih format<select id="product-format" aria-label="Choose your format"><option value="Mobile (DNG)">Mobile (DNG)</option><option value="Desktop (XMP)">Desktop (XMP)</option></select></label><div class="purchase-row"><button class="button button-dark detail-buy" type="button" data-action="buy-now">COBA CHECKOUT</button><button class="button button-outline detail-add" type="button" data-action="add-detail">ADD TO CART</button></div><p class="detail-meta">Maksimal 1 item per produk. Kategori: <a href="store.html?category=${encodeURIComponent(product.category_slug || "")}">${escapeHtml(product.category_name || "Preset")}</a></p><a class="text-link" href="tutorial.html">Cara memasang preset <span>↗</span></a></div></section>
     <section class="product-tabs section-wrap"><h2>Contoh visual</h2><p class="preview-disclaimer">${productPreview(product) ? "Bandingkan foto yang sama sebelum dan sesudah preset." : "Foto di bawah hanya ilustrasi suasana. Belum tersedia perbandingan asli sebelum dan sesudah untuk produk ini."}</p>${productPreview(product) ? `<div class="comparison" style="--reveal:50%"><img class="comparison-after" src="${escapeHtml(product.after_image)}" alt="Foto setelah preset"><img class="comparison-before" src="${escapeHtml(product.before_image)}" alt="Foto sebelum preset"><span class="comparison-label comparison-label-before">Sebelum</span><span class="comparison-label comparison-label-after">Sesudah</span></div><label class="comparison-control">Geser untuk membandingkan<input type="range" min="0" max="100" value="50" data-comparison aria-label="Bandingkan sebelum dan sesudah"></label>` : `<div class="sample-grid">${gallery.map((image, index) => `<figure><img src="${escapeHtml(image)}" alt="Foto ilustrasi ${index + 1}" loading="lazy" onerror="this.onerror=null;this.src='${fallbackPhoto(product)}'"><figcaption>Foto ilustrasi 0${index + 1}</figcaption></figure>`).join("")}</div>`}</section>`;
 }
@@ -188,11 +218,12 @@ function renderAbout() {
 function renderCart() {
   const items = cartItems();
   const total = items.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
-  const rows = items.map(item => `<article class="cart-row"><div class="cart-product-cell"><button class="cart-remove" type="button" data-action="remove" data-slug="${escapeHtml(item.slug)}" aria-label="Remove ${escapeHtml(item.name)}">×</button><a class="cart-thumb" href="product.html?slug=${encodeURIComponent(item.slug)}"><img src="${escapeHtml(item.image)}" alt=""></a><div class="cart-item-info"><a class="product-title" href="product.html?slug=${encodeURIComponent(item.slug)}">${escapeHtml(item.name)}</a><span>${escapeHtml(item.format || "Mobile (DNG)")}</span></div></div><span class="cart-price" data-label="Price">${money(item.price)}</span><span class="cart-quantity" data-label="Quantity">1</span><strong class="line-total" data-label="Subtotal">${money(item.price)}</strong></article>`).join("");
-  document.querySelector("#page-content").innerHTML = `<section class="page-intro"><p class="eyebrow">YOUR SELECTION</p><h1>Shopping bag</h1></section><section class="cart-page section-wrap">${items.length ? `<div class="cart-layout"><div class="cart-items"><div class="cart-table-header" aria-hidden="true"><span>Product</span><span>Price</span><span>Quantity</span><span>Subtotal</span></div>${rows}<div class="cart-actions"><form class="coupon-form" id="coupon-form"><label class="visually-hidden" for="coupon-code">Coupon code</label><input id="coupon-code" name="code" type="text" placeholder="Coupon code" autocomplete="off"><button class="button button-dark" type="submit">APPLY COUPON</button><p class="coupon-message" role="status" aria-live="polite" hidden></p></form><a class="text-link" href="store.html">← CONTINUE SHOPPING</a></div></div><aside class="cart-summary"><h2>Cart totals</h2><div><span>Subtotal</span><strong data-cart-subtotal>${money(total)}</strong></div><div class="coupon-discount-row" data-coupon-row hidden><span data-coupon-label>Discount</span><strong data-coupon-discount></strong></div><div><span>Pengiriman</span><strong>Belum tersedia di demo</strong></div><div class="summary-total"><span>Total</span><strong data-cart-total>${money(total)}</strong></div><button type="button" class="button button-dark full-button" data-action="checkout-start">COBA CHECKOUT DEMO</button><p>Simulasi saja · Tidak ada pembayaran atau pengiriman file</p></aside></div><section class="checkout-panel" hidden><div class="checkout-heading"><p class="eyebrow">SIMULASI</p><h2>Checkout demo</h2><p>Formulir ini hanya untuk mencoba alur. Jangan masukkan data pribadi asli.</p></div><form id="checkout-form"><label>Nama lengkap<input name="name" autocomplete="name" required></label><label>Email<input name="email" type="email" autocomplete="email" required></label><label>Metode pembayaran<select name="payment" required><option value="">Pilih metode</option><option>QRIS</option><option value="virtual-account">Virtual Account (VA)</option><option>E-wallet</option></select></label><button class="button button-dark full-button" type="submit" data-checkout-total>PLACE DEMO ORDER · ${money(total)}</button><p class="checkout-note">Demo storefront: formulir ini tidak memproses pembayaran atau menyimpan pesanan ke server.</p></form></section>` : `<div class="cart-empty"><p class="empty-bag-icon">♧</p><h2>Your bag is empty</h2><p>Temukan preset untuk foto-foto favoritmu.</p><a class="button button-dark" href="store.html">SHOP PRESETS</a></div>`}</section>`;
+  const rows = items.map(item => `<article class="cart-row"><div class="cart-product-cell"><button class="cart-remove" type="button" data-action="remove" data-slug="${escapeHtml(item.slug)}" aria-label="Remove ${escapeHtml(item.name)}">×</button><a class="cart-thumb" aria-label="Lihat ${escapeHtml(item.name)}" href="product.html?slug=${encodeURIComponent(item.slug)}"><img src="${escapeHtml(item.image)}" alt=""></a><div class="cart-item-info"><a class="product-title" href="product.html?slug=${encodeURIComponent(item.slug)}">${escapeHtml(item.name)}</a><span>${escapeHtml(item.format || "Mobile (DNG)")}</span></div></div><span class="cart-price" data-label="Price">${money(item.price)}</span><span class="cart-quantity" data-label="Quantity">1</span><strong class="line-total" data-label="Subtotal">${money(item.price)}</strong></article>`).join("");
+  document.querySelector("#page-content").innerHTML = `<section class="page-intro"><p class="eyebrow">YOUR SELECTION</p><h1>Shopping bag</h1></section><section class="cart-page section-wrap">${items.length ? `<div class="cart-layout"><div class="cart-items"><div class="cart-table-header" aria-hidden="true"><span>Product</span><span>Price</span><span>Quantity</span><span>Subtotal</span></div>${rows}<div class="cart-actions"><form class="coupon-form" id="coupon-form"><label class="visually-hidden" for="coupon-code">Coupon code</label><input id="coupon-code" name="code" type="text" placeholder="Coupon code" autocomplete="off"><button class="button button-dark" type="submit">APPLY COUPON</button><p class="coupon-message" role="status" aria-live="polite" hidden></p></form><a class="text-link" href="store.html">← CONTINUE SHOPPING</a></div></div><aside class="cart-summary"><h2>Cart totals</h2><div><span>Subtotal</span><strong data-cart-subtotal>${money(total)}</strong></div><div class="coupon-discount-row" data-coupon-row hidden><span data-coupon-label>Discount</span><strong data-coupon-discount></strong></div><div><span>Pengiriman</span><strong>Belum tersedia di demo</strong></div><div class="summary-total"><span>Total</span><strong data-cart-total>${money(total)}</strong></div><button type="button" class="button button-dark full-button" data-action="checkout-start">COBA CHECKOUT DEMO</button><p>Simulasi saja · Tidak ada pembayaran atau pengiriman file</p></aside></div><section class="checkout-panel" hidden><div class="checkout-heading"><p class="eyebrow">SIMULASI</p><h2>Checkout demo</h2><p>Formulir ini hanya untuk mencoba alur. Jangan masukkan data pribadi asli.</p></div><form id="checkout-form"><label>Nama lengkap<input name="name" autocomplete="name" required></label><label>Email<input name="email" type="email" autocomplete="email" required></label><label>Metode pembayaran<select name="payment" required><option value="">Pilih metode</option><option>QRIS</option><option value="virtual-account">Virtual Account (VA)</option><option>E-wallet</option></select></label><button class="button button-dark full-button" type="submit" data-checkout-total>PLACE DEMO ORDER · ${money(total)}</button><p class="checkout-note">Demo storefront: formulir ini tidak memproses pembayaran atau menyimpan pesanan ke server.</p></form></section>` : `<div class="cart-empty"><p class="empty-bag-icon">${icon("bag")}</p><h2>Your bag is empty</h2><p>Temukan preset untuk foto-foto favoritmu.</p><a class="button button-dark" href="store.html">SHOP PRESETS</a></div>`}</section>`;
 }
 
 function addToCart(product, format = "Mobile (DNG)") {
+  modalTrigger = document.activeElement;
   const items = cartItems();
   const existing = items.find(item => item.slug === product.slug);
   if (!existing) items.push({ slug: product.slug, name: product.name, price: Number(product.price), image: productPhoto(product), format, quantity: 1 });
@@ -205,14 +236,23 @@ function addToCart(product, format = "Mobile (DNG)") {
   modal.hidden = false;
   document.body.classList.add("modal-open");
   updateCartCount();
+  setModalBackground(true);
+  modal.querySelector(".modal-close").focus();
+}
+
+function setModalBackground(inert) {
+  for (const id of ["site-header", "page-content", "site-footer"]) document.getElementById(id).inert = inert;
 }
 
 function closeModal() {
   const modal = document.querySelector(".added-modal");
+  const wasOpen = modal && !modal.hidden;
   if (modal) modal.hidden = true;
   const backdrop = document.querySelector(".modal-backdrop");
   if (backdrop) backdrop.hidden = true;
   document.body.classList.remove("modal-open");
+  setModalBackground(false);
+  if (wasOpen && modalTrigger?.isConnected) modalTrigger.focus();
 }
 
 function showSearchResults(query) {
@@ -232,10 +272,16 @@ function bindEvents() {
       const open = button.getAttribute("aria-expanded") !== "true";
       button.setAttribute("aria-expanded", String(open));
       document.querySelector(".primary-nav").classList.toggle("is-open", open);
+      document.querySelector(".search-panel").hidden = true;
+      document.querySelector("[aria-controls=search-panel]").setAttribute("aria-expanded", "false");
     }
     if (action === "search") {
       const panel = document.querySelector(".search-panel");
       panel.hidden = !panel.hidden;
+      document.querySelector("[aria-controls=search-panel]").setAttribute("aria-expanded", String(!panel.hidden));
+      document.querySelector(".primary-nav").classList.remove("is-open");
+      document.querySelector(".menu-toggle").setAttribute("aria-expanded", "false");
+      if (panel.hidden) document.querySelector("[aria-controls=search-panel]").focus();
       if (!panel.hidden) { showSearchResults(""); document.querySelector("#site-search").focus(); }
     }
     if (action === "close-modal") closeModal();
@@ -254,13 +300,34 @@ function bindEvents() {
       const slug = event.target.closest("[data-slug]").dataset.slug;
       saveCart(cartItems().filter(item => item.slug !== slug)); renderCart();
     }
-    if (action === "checkout-start") document.querySelector(".checkout-panel").hidden = false;
+    if (action === "retry") location.reload();
+    if (action === "reset-filters") {
+      if (document.body.dataset.page === "store") { activeCategory = "all"; activeSort = "featured"; syncStoreUrl(""); renderStore(); }
+      else location.href = "store.html";
+    }
+    if (action === "checkout-start") {
+      const panel = document.querySelector(".checkout-panel");
+      panel.hidden = false;
+      panel.querySelector("input").focus();
+      panel.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+    }
     const filter = event.target.closest("[data-category-filter]");
-    if (filter) { activeCategory = filter.dataset.categoryFilter; renderStore(new URLSearchParams(location.search).get("q") || ""); }
+    if (filter) {
+      activeCategory = filter.dataset.categoryFilter;
+      syncStoreUrl(storeQuery());
+      document.querySelectorAll("[data-category-filter]").forEach(button => {
+        button.classList.toggle("is-active", button === filter);
+        button.setAttribute("aria-pressed", String(button === filter));
+      });
+      updateStoreResults();
+    }
     const imageButton = event.target.closest("[data-image]");
     if (imageButton) {
       document.querySelector("[data-gallery-main]").src = imageButton.dataset.image;
-      document.querySelectorAll(".gallery-thumb").forEach(button => button.classList.toggle("is-active", button === imageButton));
+      document.querySelectorAll(".gallery-thumb").forEach(button => {
+        button.classList.toggle("is-active", button === imageButton);
+        button.setAttribute("aria-pressed", String(button === imageButton));
+      });
     }
     const tab = event.target.closest("[data-tab]");
     if (tab) {
@@ -270,13 +337,15 @@ function bindEvents() {
   });
 
   document.addEventListener("input", event => {
+    if (event.target.matches("#catalog-search")) { syncStoreUrl(event.target.value.trim()); updateStoreResults(); }
     if (event.target.matches("#site-search")) showSearchResults(event.target.value);
     if (event.target.matches("[data-comparison]")) document.querySelector(".comparison")?.style.setProperty("--reveal", `${event.target.value}%`);
   });
   document.addEventListener("change", event => {
-    if (event.target.matches("#sort-products")) { activeSort = event.target.value; renderStore(new URLSearchParams(location.search).get("q") || ""); }
+    if (event.target.matches("#sort-products")) { activeSort = event.target.value; syncStoreUrl(storeQuery()); updateStoreResults(); }
   });
   document.addEventListener("submit", event => {
+    if (event.target.matches(".catalog-search")) { event.preventDefault(); syncStoreUrl(document.querySelector("#catalog-search").value.trim()); updateStoreResults(); }
     if (event.target.matches(".search-form")) {
       event.preventDefault();
       const query = document.querySelector("#site-search").value.trim();
@@ -329,7 +398,31 @@ function bindEvents() {
       }).finally(() => { submitButton.disabled = false; });
     }
   });
-  document.addEventListener("keydown", event => { if (event.key === "Escape") closeModal(); });
+  document.addEventListener("click", event => {
+    if (!event.target.closest("#site-header")) {
+      document.querySelector(".search-panel").hidden = true;
+      document.querySelector("[aria-controls=search-panel]").setAttribute("aria-expanded", "false");
+      document.querySelector(".primary-nav").classList.remove("is-open");
+      document.querySelector(".menu-toggle").setAttribute("aria-expanded", "false");
+    }
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") {
+      closeModal();
+      const search = document.querySelector(".search-panel");
+      if (!search.hidden) { search.hidden = true; document.querySelector("[aria-controls=search-panel]").focus(); }
+      document.querySelector("[aria-controls=search-panel]").setAttribute("aria-expanded", "false");
+      const menu = document.querySelector(".menu-toggle");
+      if (menu.getAttribute("aria-expanded") === "true") { menu.setAttribute("aria-expanded", "false"); document.querySelector(".primary-nav").classList.remove("is-open"); menu.focus(); }
+    }
+    const modal = document.querySelector(".added-modal");
+    if (event.key === "Tab" && !modal.hidden) {
+      const controls = modal.querySelectorAll("a[href], button");
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+  });
 }
 
 async function loadCatalog() {
@@ -348,6 +441,7 @@ async function loadCatalog() {
       categories = [];
     }
   } catch (error) {
+    catalogUnavailable = true;
     console.warn("Catalog could not be loaded:", error.message);
     products = [];
     categories = [];
@@ -357,11 +451,16 @@ async function loadCatalog() {
 async function init() {
   renderHeader(); renderFooter(); renderOverlays(); bindEvents();
   const page = document.body.dataset.page;
-  if (["home", "store", "product"].includes(page)) await loadCatalog();
+  if (["home", "store", "product"].includes(page)) {
+    document.querySelector("#page-content").innerHTML = '<div class="catalog-loading" role="status"><span></span>Menyiapkan koleksi Evarti.</div>';
+    await loadCatalog();
+  }
   if (page === "home") renderHome();
   if (page === "store") {
     const category = new URLSearchParams(location.search).get("category");
-    if (category) activeCategory = category;
+    if (category && categories.some(item => item.slug === category)) activeCategory = category;
+    const sort = new URLSearchParams(location.search).get("sort");
+    if (["featured", "price-low", "price-high", "name"].includes(sort)) activeSort = sort;
     const query = new URLSearchParams(location.search).get("q") || "";
     renderStore(query);
   }

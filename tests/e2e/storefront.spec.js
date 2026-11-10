@@ -135,9 +135,9 @@ test("bag item limit, remove, and demo checkout work", async ({ page }) => {
   await page.getByRole("button", { name: "COBA CHECKOUT DEMO" }).click();
   await page.getByLabel("Nama lengkap").fill("Test Customer");
   await page.getByLabel("Email").fill("test@example.com");
-  await page.getByLabel("Metode pembayaran").selectOption("virtual-account");
-  await expect(page.getByLabel("Metode pembayaran")).toHaveValue("virtual-account");
-  await page.getByLabel("Metode pembayaran").selectOption({ label: "QRIS" });
+  await page.getByRole("combobox", { name: "Metode pembayaran", exact: true }).selectOption("virtual-account");
+  await expect(page.getByRole("combobox", { name: "Metode pembayaran", exact: true })).toHaveValue("virtual-account");
+  await page.getByRole("combobox", { name: "Metode pembayaran", exact: true }).selectOption({ label: "QRIS" });
   await page.getByRole("button", { name: /PLACE DEMO ORDER/ }).click();
   await expect(page.getByRole("heading", { name: /Simulasi selesai, Test Customer/ })).toBeVisible();
   await expect(page.locator(".bag-count")).toHaveText("0");
@@ -229,7 +229,8 @@ test("empty and unavailable API states remain readable", async ({ page }) => {
   await page.unroute("http://localhost:3000/api/products**");
   await page.route("http://localhost:3000/api/products**", route => route.abort("failed"));
   await page.goto("/store.html");
-  await expect(page.getByText("Belum ada preset di kategori ini.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Koleksi belum dapat dimuat" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Coba lagi" })).toBeVisible();
 });
 
 test("products remain visible when only the category API is unavailable", async ({ page }) => {
@@ -278,4 +279,75 @@ test("product with real preview images shows an interactive comparison", async (
   await expect(page.locator(".comparison")).toBeVisible();
   await page.getByRole("slider", { name: "Bandingkan sebelum dan sesudah" }).fill("75");
   await expect(page.locator(".comparison")).toHaveCSS("--reveal", "75%");
+});
+
+
+test("catalog search, filters, and sort survive reload and can be reset", async ({ page }) => {
+  await page.goto("/store.html");
+  const search = page.getByRole("searchbox", { name: "Cari dalam koleksi" });
+  await search.fill("Creamy");
+  await expect(search).toBeFocused();
+  await expect(page.locator(".product-card")).toHaveCount(1);
+  await page.getByRole("button", { name: "Desktop Presets", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Desktop Presets", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.locator("#sort-products").selectOption("price-high");
+  await expect(page).toHaveURL(/q=Creamy&category=desktop-presets&sort=price-high/);
+  await page.reload();
+  await expect(search).toHaveValue("Creamy");
+  await expect(page.locator("#sort-products")).toHaveValue("price-high");
+  await expect(page.locator(".product-card")).toHaveCount(1);
+  await search.fill("no matching preset");
+  await expect(page.locator(".product-card")).toHaveCount(0);
+  await page.getByRole("button", { name: "Lihat semua preset" }).click();
+  await expect(page.locator(".product-card")).toHaveCount(3);
+  await expect(page).toHaveURL(/store\.html$/);
+});
+
+test("bag dialog contains keyboard focus and returns it to the add button", async ({ page }) => {
+  await page.goto("/product.html?slug=soft-pink-preset");
+  const add = page.getByRole("button", { name: "ADD TO CART", exact: true });
+  await add.click();
+  const close = page.getByRole("button", { name: "Close", exact: true });
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.getByRole("button", { name: "Continue shopping" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(add).toBeFocused();
+  await expect(page.locator("main")).not.toHaveAttribute("inert");
+});
+
+test("search and mobile navigation expose state and close with Escape", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const toggle = page.getByRole("button", { name: "Search presets", exact: true });
+  const menu = page.getByRole("button", { name: "Open menu" });
+  await menu.click();
+  await expect(menu).toHaveAttribute("aria-expanded", "true");
+  await toggle.click();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("searchbox", { name: "Search presets" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(toggle).toBeFocused();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await menu.click();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeFocused();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+});
+
+test("all storefront pages fit small phones, tablets, and desktops", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  for (const path of ["/store.html", "/product.html?slug=soft-pink-preset", "/cart.html", "/tutorial.html", "/about.html"]) {
+    await page.goto(path);
+    await expect(page.locator("main h1")).toBeVisible();
+    for (const width of [320, 375, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      const size = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }));
+      expect(size.content, `${path} at ${width}px`).toBeLessThanOrEqual(size.viewport);
+    }
+  }
 });
